@@ -1,0 +1,43 @@
+input:
+  nats:
+    urls:
+      - nats://localhost:4222
+    subject: messages.*.prompt
+    queue: ""
+buffer:
+  none: {}
+pipeline:
+  threads: -1
+  processors:
+    # Map the NATS message into the Ollama API request body format
+    # - mapping: |
+    #     root.model = "dolphin-mixtral"
+    #     root.prompt = this.message
+    - branch:
+        # Map the NATS message into the Ollama API request body format
+        request_map: |
+          root.stream = false
+          root.model = "dolphin-mixtral"
+          root.prompt = this.message
+        processors:
+          # Call the Ollama API
+          - http:
+              url: http://localhost:11434/api/generate
+              verb: POST
+              headers: {}
+              rate_limit: ""
+              timeout: 60s
+              parallel: false
+        # Map the Ollama API response into the NATS message format
+        result_map: |
+          root.message = this.response
+output:
+  stdout: {}
+  # nats:
+  #   urls:
+  #     - nats://localhost:4222
+  #   subject: ${!meta("nats_subject")}.response
+  #   headers: {}
+  #   metadata:
+  #     include_prefixes: []
+  #     include_patterns: []
