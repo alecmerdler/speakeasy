@@ -1,18 +1,17 @@
+# This Benthos config file creates a pipeline which:
+#  - Listens on a NATS topic
+#  - Sends the message to the Ollama API
+#  - Returns the LLM response to another NATS topic
 input:
   nats:
     urls:
       - nats://localhost:4222
     subject: messages.*.prompt
-    queue: ""
 buffer:
   none: {}
 pipeline:
   threads: -1
   processors:
-    # Map the NATS message into the Ollama API request body format
-    # - mapping: |
-    #     root.model = "dolphin-mixtral"
-    #     root.prompt = this.message
     - branch:
         # Map the NATS message into the Ollama API request body format
         request_map: |
@@ -32,12 +31,11 @@ pipeline:
         result_map: |
           root.message = this.response
 output:
-  stdout: {}
-  # nats:
-  #   urls:
-  #     - nats://localhost:4222
-  #   subject: ${!meta("nats_subject")}.response
-  #   headers: {}
-  #   metadata:
-  #     include_prefixes: []
-  #     include_patterns: []
+  broker:
+    pattern: fan_out
+    outputs:
+      - stdout: {}
+      - nats:
+          urls:
+            - nats://localhost:4222
+          subject: ${!meta("nats_subject").replace_all("prompt", "response")}
